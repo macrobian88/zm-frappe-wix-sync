@@ -56,12 +56,34 @@ def sync_item_to_wix(doc, method):
 def get_wix_sync_settings():
     """
     Get Wix sync settings from the database
+    For Single DocTypes, create the document if it doesn't exist
     """
     try:
-        if frappe.db.exists("Wix Sync Settings", "Wix Sync Settings"):
-            return frappe.get_doc("Wix Sync Settings", "Wix Sync Settings")
+        # For Single DocTypes, the document name is the same as the DocType name
+        doctype_name = "Wix Sync Settings"
+        
+        # Check if the document exists
+        if frappe.db.exists(doctype_name, doctype_name):
+            return frappe.get_doc(doctype_name, doctype_name)
         else:
-            return None
+            # Create the default Single DocType document if it doesn't exist
+            frappe.logger().info("Wix Sync Settings document not found, creating default document")
+            
+            default_doc = frappe.get_doc({
+                "doctype": doctype_name,
+                "title": "Wix Sync Configuration",
+                "enable_sync": 0,
+                "wix_site_id": "a57521a4-3ecd-40b8-852c-462f2af558d2",  # Default kokofresh site ID
+                "wix_api_key": "",
+                "connection_status": "",
+                "last_test_datetime": None
+            })
+            default_doc.insert(ignore_permissions=True)
+            frappe.db.commit()
+            
+            frappe.logger().info("Created default Wix Sync Settings document")
+            return default_doc
+            
     except Exception as e:
         frappe.log_error(f"Error getting Wix sync settings: {str(e)}", "Wix Sync")
         return None
@@ -218,48 +240,63 @@ def test_wix_connection():
     try:
         settings = get_wix_sync_settings()
         if not settings:
-            return {"success": False, "message": "Wix sync settings not found"}
+            return {"success": False, "message": "Unable to load Wix sync settings"}
             
         api_key = settings.get("wix_api_key")
         site_id = settings.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2")
         
         if not api_key:
-            return {"success": False, "message": "API key not configured"}
+            return {"success": False, "message": "API key not configured. Please set your Wix API key first."}
         
-        # Test with a simple product creation (minimal data)
-        test_product = {
-            "product": {
-                "name": "Test Product - Please Delete",
-                "productType": "PHYSICAL",
-                "physicalProperties": {},
-                "variantsInfo": {
-                    "variants": [{
-                        "price": {
-                            "actualPrice": {
-                                "amount": "1.00"
-                            }
-                        },
-                        "physicalProperties": {}
-                    }]
-                }
-            }
+        if not site_id:
+            return {"success": False, "message": "Site ID not configured. Please set your Wix Site ID first."}
+        
+        # Test with a simple API call to get site info instead of creating a product
+        # This is less intrusive than creating test products
+        url = f"https://www.wixapis.com/site-properties/v4/properties"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "wix-site-id": site_id
         }
         
-        result = create_wix_product(test_product, api_key, site_id)
+        # Make a simple GET request to test authentication
+        response = requests.get(url, headers=headers, timeout=30)
         
-        if result.get("success"):
+        if response.status_code == 200:
             return {
                 "success": True, 
-                "message": f"Connection successful! Test product created with ID: {result.get('wix_product_id')}"
+                "message": "Connection successful! API key and site ID are valid."
+            }
+        elif response.status_code == 401:
+            return {
+                "success": False, 
+                "message": "Authentication failed. Please check your API key."
+            }
+        elif response.status_code == 403:
+            return {
+                "success": False, 
+                "message": "Access denied. Please check your API key permissions and site ID."
+            }
+        elif response.status_code == 404:
+            return {
+                "success": False, 
+                "message": "Site not found. Please check your site ID."
             }
         else:
             return {
                 "success": False, 
-                "message": f"Connection failed: {result.get('error')}"
+                "message": f"Connection test failed with HTTP {response.status_code}: {response.text}"
             }
             
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Connection timeout. Please check your internet connection."}
+    except requests.exceptions.ConnectionError:
+        return {"success": False, "message": "Connection error. Please check your internet connection."}
     except Exception as e:
-        return {"success": False, "message": f"Error testing connection: {str(e)}"}
+        frappe.log_error(f"Error in test_wix_connection: {str(e)}", "Wix Sync Test Connection")
+        return {"success": False, "message": f"Unexpected error: {str(e)}"}
 
 
 @frappe.whitelist()
