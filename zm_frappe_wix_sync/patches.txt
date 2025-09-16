@@ -3,3 +3,4 @@
 # zm_frappe_wix_sync.patches.v1_0.initial_setup
 
 zm_frappe_wix_sync.patches.v1_0.fix_wix_sync_settings_naming
+zm_frappe_wix_sync.patches.v1_0.fix_single_doctype_naming
