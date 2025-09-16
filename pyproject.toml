@@ -6,15 +6,34 @@ build-backend = "flit_core.buildapi"
 name = "zm_frappe_wix_sync"
 version = "0.0.1"
 description = "A Frappe app to sync ERPNext items with Wix products"
-authors = [{name = "Your Name", email = "your.email@example.com"}]
+authors = [{name = "ZM Tech", email = "tech@zmtech.com"}]
 dependencies = [
     "frappe>=15.0.0",
     "requests>=2.31.0"
 ]
 requires-python = ">=3.8"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = {text = "MIT"}
+keywords = ["frappe", "erpnext", "wix", "sync", "ecommerce"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Office/Business :: Financial :: Point-Of-Sale"
+]
 
 [project.urls]
 Repository = "https://github.com/macrobian88/zm-frappe-wix-sync"
 Homepage = "https://github.com/macrobian88/zm-frappe-wix-sync"
+Issues = "https://github.com/macrobian88/zm-frappe-wix-sync/issues"
+Documentation = "https://github.com/macrobian88/zm-frappe-wix-sync/blob/main/README.md"
+
+[tool.flit.module]
+name = "zm_frappe_wix_sync"
