@@ -1,7 +1,6 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:title",
  "creation": "2024-01-01 12:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -19,11 +18,10 @@
  ],
  "fields": [
   {
-   "default": "Wix Sync Settings",
+   "default": "Wix Sync Configuration",
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -81,7 +79,6 @@
  "modified_by": "Administrator",
  "module": "ZM Frappe Wix Sync",
  "name": "Wix Sync Settings",
- "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
