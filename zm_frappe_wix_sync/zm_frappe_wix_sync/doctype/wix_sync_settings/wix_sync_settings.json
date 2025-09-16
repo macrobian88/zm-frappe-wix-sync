@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2024-01-01 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "enable_sync",
+  "section_break_3",
+  "wix_site_id",
+  "wix_api_key",
+  "section_break_7",
+  "test_connection",
+  "connection_status",
+  "last_test_datetime"
+ ],
+ "fields": [
+  {
+   "default": "Wix Sync Settings",
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_sync",
+   "fieldtype": "Check",
+   "label": "Enable Sync"
+  },
+  {
+   "fieldname": "section_break_3",
+   "fieldtype": "Section Break",
+   "label": "Wix API Configuration"
+  },
+  {
+   "description": "Your Wix Site ID (default is kokofresh site)",
+   "fieldname": "wix_site_id",
+   "fieldtype": "Data",
+   "label": "Wix Site ID",
+   "reqd": 1
+  },
+  {
+   "description": "Your Wix API Key for authentication",
+   "fieldname": "wix_api_key",
+   "fieldtype": "Password",
+   "label": "Wix API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break",
+   "label": "Connection Test"
+  },
+  {
+   "fieldname": "test_connection",
+   "fieldtype": "Button",
+   "label": "Test Connection"
+  },
+  {
+   "fieldname": "connection_status",
+   "fieldtype": "Small Text",
+   "label": "Connection Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_test_datetime",
+   "fieldtype": "Datetime",
+   "label": "Last Test DateTime",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_single": 1,
+ "links": [],
+ "modified": "2024-01-01 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "ZM Frappe Wix Sync",
+ "name": "Wix Sync Settings",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
