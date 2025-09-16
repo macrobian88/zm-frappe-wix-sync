@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] - 2025-09-16
+
+### Fixed
+- **Critical Bug Fix**: Fixed "Wix sync settings not found" error during test connection
+  - Enhanced `get_wix_sync_settings()` function to auto-create Single DocType document if it doesn't exist
+  - Improved test connection functionality with better error handling and validation
+  - Fixed Single DocType document creation logic for new installations
+  - Better error messages for missing API keys and site IDs
+
+### Improved
+- **Test Connection Feature**:
+  - Changed to use less intrusive Wix API endpoint (site properties instead of creating test products)
+  - Added comprehensive validation before testing connection
+  - Improved client-side JavaScript with better error handling and user feedback
+  - Added visual indicators for connection status on the form
+  - Form now saves automatically before testing to ensure settings persist
+  - Clear connection status when API key or site ID changes
+
+### Technical
+- Enhanced Single DocType handling in `get_wix_sync_settings()` function
+- Added `test_connection()` method to `WixSyncSettings` DocType class
+- Improved API error handling with specific HTTP status code responses
+- Better logging for debugging Single DocType creation issues
+- Enhanced client-side validation and user experience
+
 ## [0.0.2] - 2025-09-16
 
 ### Fixed
@@ -62,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### API Endpoints Used
 - `POST https://www.wixapis.com/stores/v3/products` - Create products in Wix
+- `GET https://www.wixapis.com/site-properties/v4/properties` - Test connection
 
 ### Configuration
 - Default Wix Site ID configured for kokofresh: `a57521a4-3ecd-40b8-852c-462f2af558d2`

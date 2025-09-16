@@ -18,3 +18,11 @@ class WixSyncSettings(Document):
         if self.has_value_changed('wix_api_key') or self.has_value_changed('wix_site_id'):
             self.connection_status = ""
             self.last_test_datetime = None
+    
+    @frappe.whitelist()
+    def test_connection(self):
+        """
+        Test connection method that can be called directly from the DocType
+        """
+        from zm_frappe_wix_sync.api.wix_sync import test_wix_connection
+        return test_wix_connection()
