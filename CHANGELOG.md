@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] - 2025-09-16
+
+### Fixed
+- **Critical Bug Fix**: Fixed "Name of Wix Sync Settings cannot be Wix Sync Settings" error
+  - Removed conflicting `autoname` and `naming_rule` fields from Single DocType configuration
+  - Single DocTypes now use proper Frappe naming conventions automatically
+  - Added migration patch to handle existing installations with problematic document names
+  - Made title field editable for better user experience
+
+### Changed
+- **Wix Sync Settings DocType**: 
+  - Removed `autoname: "field:title"` configuration that caused naming conflicts
+  - Removed `naming_rule: "By fieldname"` that was incompatible with Single DocTypes
+  - Changed default title from "Wix Sync Settings" to "Wix Sync Configuration"
+  - Made title field editable instead of read-only
+
+### Technical
+- Added migration patch `zm_frappe_wix_sync.patches.v1_0.fix_wix_sync_settings_naming`
+- Improved Single DocType handling according to Frappe framework best practices
+- Better error handling for existing installations during upgrade
+
 ## [0.0.1] - 2024-01-01
 
 ### Added
