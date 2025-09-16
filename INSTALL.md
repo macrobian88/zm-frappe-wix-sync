@@ -11,6 +11,7 @@
 
 ### 1. Download and Install the App
 
+#### Method 1: Standard Installation (Recommended)
 ```bash
 # Navigate to your bench directory
 cd /path/to/your/bench
@@ -23,6 +24,41 @@ bench install-app zm_frappe_wix_sync --site your-site-name
 
 # Restart bench
 bench restart
+```
+
+#### Method 2: Alternative Installation (If Method 1 fails)
+```bash
+# Navigate to your bench apps directory
+cd /path/to/your/bench/apps
+
+# Clone the repository manually
+git clone https://github.com/macrobian88/zm-frappe-wix-sync.git
+
+# Go back to bench directory
+cd ..
+
+# Install the app
+bench install-app zm_frappe_wix_sync --site your-site-name
+
+# Install dependencies
+bench pip install requests
+
+# Restart bench
+bench restart
+```
+
+### ⚠️ Installation Fix for Build Errors
+
+If you encounter the error `License file LICENSE does not exist` during installation, this has been fixed in the latest version. Make sure to pull the latest changes:
+
+```bash
+# If already cloned, update the app
+cd /path/to/your/bench/apps/zm_frappe_wix_sync
+git pull origin main
+
+# Then try installation again
+cd /path/to/your/bench
+bench install-app zm_frappe_wix_sync --site your-site-name
 ```
 
 ### 2. Get Wix API Credentials
@@ -91,7 +127,25 @@ The kokofresh site ID is already configured: `a57521a4-3ecd-40b8-852c-462f2af558
 
 ### 6. Troubleshooting
 
-#### Common Issues
+#### Common Installation Issues
+
+**1. License File Error**
+- Error: `License file LICENSE does not exist`
+- Solution: This has been fixed. Update to latest version using `git pull origin main`
+
+**2. PyProject.toml Build Error**
+- Error: `flit_core.config.ConfigError`
+- Solution: The app now uses traditional setup.py for better Frappe compatibility
+
+**3. Permission Issues**
+- Error: Permission denied during installation
+- Solution: Ensure your bench user has proper permissions, try with `sudo` if needed
+
+**4. Dependency Issues**
+- Error: Missing dependencies
+- Solution: Run `bench pip install requests` manually
+
+#### Common Runtime Issues
 
 **1. API Key Invalid**
 - Error: "HTTP 401: Unauthorized"
