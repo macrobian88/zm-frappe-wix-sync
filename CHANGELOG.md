@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.4] - 2025-09-16
+
+### Fixed
+- **Critical Bug Fix**: Fixed "Unable to load Wix sync settings" error in test connection
+  - Enhanced document retrieval to handle incorrectly named Single DocType documents
+  - Added automatic migration from incorrect auto-generated names to proper Single DocType naming
+  - Implemented fallback mechanisms for document retrieval in edge cases
+  - Added validation to detect placeholder API key values
+  - Fixed document creation with proper Single DocType naming conventions
+
+### Improved
+- **Settings Management**:
+  - Robust handling of legacy document naming issues
+  - Automatic cleanup of duplicate documents with incorrect names
+  - Better validation of API key configuration
+  - Enhanced error messages for troubleshooting
+  - Improved logging for debugging Single DocType issues
+
+### Technical
+- Enhanced `get_wix_sync_settings()` with comprehensive document handling
+- Added migration patch `zm_frappe_wix_sync.patches.v1_0.fix_single_doctype_naming`
+- Improved error handling and fallback mechanisms
+- Better support for installations with existing naming conflicts
+- Enhanced logging for diagnostic purposes
+
 ## [0.0.3] - 2025-09-16
 
 ### Fixed
