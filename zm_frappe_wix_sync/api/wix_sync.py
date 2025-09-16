@@ -56,21 +56,69 @@ def sync_item_to_wix(doc, method):
 def get_wix_sync_settings():
     """
     Get Wix sync settings from the database
-    For Single DocTypes, create the document if it doesn't exist
+    For Single DocTypes, handle both proper and legacy document naming
     """
     try:
-        # For Single DocTypes, the document name is the same as the DocType name
         doctype_name = "Wix Sync Settings"
         
-        # Check if the document exists
+        # First, try to find the document with the correct Single DocType name
         if frappe.db.exists(doctype_name, doctype_name):
             return frappe.get_doc(doctype_name, doctype_name)
+        
+        # If not found with proper name, check if there's any document of this DocType
+        existing_docs = frappe.get_all(doctype_name, limit=1)
+        
+        if existing_docs:
+            # Get the first (and should be only) document
+            existing_doc = frappe.get_doc(doctype_name, existing_docs[0].name)
+            
+            # If it's not named properly, we need to handle this
+            if existing_doc.name != doctype_name:
+                frappe.logger().info(f"Found Wix Sync Settings with incorrect name: {existing_doc.name}. Attempting to fix naming issue.")
+                
+                # For Single DocTypes, try to rename it properly
+                try:
+                    # Check if the correct name already exists (edge case)
+                    if not frappe.db.exists(doctype_name, doctype_name):
+                        # Create a new document with the correct name and data from existing
+                        new_doc = frappe.get_doc({
+                            "doctype": doctype_name,
+                            "name": doctype_name,  # Explicitly set the name
+                            "title": existing_doc.get("title", "Wix Sync Configuration"),
+                            "enable_sync": existing_doc.get("enable_sync", 0),
+                            "wix_site_id": existing_doc.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2"),
+                            "wix_api_key": existing_doc.get("wix_api_key", ""),
+                            "connection_status": existing_doc.get("connection_status", ""),
+                            "last_test_datetime": existing_doc.get("last_test_datetime")
+                        })
+                        new_doc.flags.ignore_naming_series = True
+                        new_doc.insert(ignore_permissions=True)
+                        
+                        # Delete the old document
+                        frappe.delete_doc(doctype_name, existing_doc.name, force=True)
+                        frappe.db.commit()
+                        
+                        frappe.logger().info(f"Successfully migrated Wix Sync Settings from '{existing_doc.name}' to '{doctype_name}'")
+                        return new_doc
+                    else:
+                        # If proper name exists, use it and clean up the duplicate
+                        frappe.delete_doc(doctype_name, existing_doc.name, force=True, ignore_permissions=True)
+                        frappe.db.commit()
+                        return frappe.get_doc(doctype_name, doctype_name)
+                        
+                except Exception as e:
+                    frappe.logger().error(f"Error migrating Wix Sync Settings naming: {str(e)}")
+                    # Fallback - return the existing document even with wrong name
+                    return existing_doc
+            
+            return existing_doc
         else:
-            # Create the default Single DocType document if it doesn't exist
+            # No document exists, create default
             frappe.logger().info("Wix Sync Settings document not found, creating default document")
             
             default_doc = frappe.get_doc({
                 "doctype": doctype_name,
+                "name": doctype_name,  # Explicitly set the name for Single DocType
                 "title": "Wix Sync Configuration",
                 "enable_sync": 0,
                 "wix_site_id": "a57521a4-3ecd-40b8-852c-462f2af558d2",  # Default kokofresh site ID
@@ -78,6 +126,7 @@ def get_wix_sync_settings():
                 "connection_status": "",
                 "last_test_datetime": None
             })
+            default_doc.flags.ignore_naming_series = True
             default_doc.insert(ignore_permissions=True)
             frappe.db.commit()
             
@@ -86,6 +135,16 @@ def get_wix_sync_settings():
             
     except Exception as e:
         frappe.log_error(f"Error getting Wix sync settings: {str(e)}", "Wix Sync")
+        
+        # Try a fallback approach - get any document of this type
+        try:
+            existing_docs = frappe.get_all("Wix Sync Settings", limit=1)
+            if existing_docs:
+                frappe.logger().info("Using fallback method to retrieve Wix Sync Settings")
+                return frappe.get_doc("Wix Sync Settings", existing_docs[0].name)
+        except Exception as fallback_error:
+            frappe.log_error(f"Fallback method also failed: {str(fallback_error)}", "Wix Sync")
+        
         return None
 
 
@@ -245,7 +304,7 @@ def test_wix_connection():
         api_key = settings.get("wix_api_key")
         site_id = settings.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2")
         
-        if not api_key:
+        if not api_key or api_key in ["", "PLACEHOLDER_API_KEY"]:
             return {"success": False, "message": "API key not configured. Please set your Wix API key first."}
         
         if not site_id:
