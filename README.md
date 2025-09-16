@@ -2,10 +2,17 @@
 
 A comprehensive Frappe app that automatically synchronizes ERPNext items with Wix Store products in real-time.
 
-## 🚀 **Latest Update - v2.1.0**
+## 🚀 **Latest Update - v2.2.0**
 
-### ✅ **Authentication Issues RESOLVED** 
-All Wix authentication problems have been completely fixed! This release resolves:
+### ✅ **API Key Length Limit FIXED** 
+**NEW**: Support for long Wix API keys (721+ characters)! This release resolves:
+- ❌ "Max allowed characters is 140" error → ✅ Supports up to 1000+ character API keys
+- ❌ IST token truncation issues → ✅ Full IST token storage  
+- ❌ Authentication failures with long keys → ✅ Complete key preservation
+- 🔄 **Automatic Migration**: Existing installations automatically upgrade field type
+
+### ✅ **Previous Fixes - Authentication Issues RESOLVED** 
+All Wix authentication problems have been completely fixed! Previous release resolved:
 - ❌ `invalid_grant` errors → ✅ Working JWT authentication  
 - ❌ 404 Not Found errors → ✅ Correct API endpoints
 - ❌ Site ID mismatches → ✅ Auto-detected site configuration
@@ -19,6 +26,7 @@ All Wix authentication problems have been completely fixed! This release resolve
 - **📊 Comprehensive Logging**: Detailed sync status tracking and error reporting
 - **🔧 Manual Controls**: Manual sync options for individual or bulk operations
 - **⚡ Real-time Updates**: Product name, price, stock, and description sync
+- **🔑 Long API Key Support**: Handles IST tokens up to 1000+ characters
 - **🔄 Backward Compatible**: Seamless upgrade from previous versions
 
 ## 📋 **Prerequisites**
@@ -48,11 +56,12 @@ bench restart
 4. **Permissions**: Select "Manage Stores - All Permissions"
 5. **Sites**: Select your site or "All Sites"
 6. **Generate** and copy the API key immediately
+7. **Note**: IST tokens can be 700+ characters long - this is normal and supported!
 
 ### 3. Configure Settings
 1. Go to **Wix Sync Settings** in your Frappe site
 2. **Enable Sync**: ✅ Check the box
-3. **Wix API Key**: Paste your API key
+3. **Wix API Key**: Paste your full API key (supports long IST tokens)
 4. **Site ID**: Will be auto-detected (or set manually)
 5. **Save** the settings
 
@@ -72,7 +81,7 @@ bench restart
 - **Title**: Descriptive name for the configuration
 - **Enable Sync**: Master switch for all sync operations
 - **Wix Site ID**: Your Wix site identifier (auto-detected)  
-- **Wix API Key**: Your JWT authentication token
+- **Wix API Key**: Your JWT authentication token (supports 1000+ characters)
 - **Connection Status**: Shows current API connection status
 - **Last Test DateTime**: Timestamp of last connection test
 
@@ -127,6 +136,7 @@ frappe.call("zm_frappe_wix_sync.api.wix_sync.manual_sync_all_items")
 # Check API key format - should start with "IST."
 # Verify site ID is correct
 # Ensure API key has Store permissions
+# Ensure full API key is pasted (IST tokens are 700+ chars)
 ```
 
 #### Problem: "401 Unauthorized"
@@ -135,6 +145,14 @@ frappe.call("zm_frappe_wix_sync.api.wix_sync.manual_sync_all_items")
 # Generate new API key with proper permissions
 # Check account owner/co-owner status
 # Verify API key hasn't been deactivated  
+```
+
+#### Problem: "Max allowed characters is 140"
+**Solution**:
+```bash
+# This issue is fixed in v2.2.0+
+# Update to latest version to support long API keys
+# If still occurring, run: bench migrate
 ```
 
 #### Problem: "Wix Stores not found"
@@ -171,6 +189,28 @@ frappe.get_all("Wix Sync Log", limit=10, order_by="creation desc")
 # (Remove \n characters)
 ```
 
+## 🔄 **Migration Notes**
+
+### Upgrading from v2.1.0 or earlier:
+The app automatically migrates the `wix_api_key` field from Password (140 chars) to Long Text (1000+ chars) when you:
+
+1. **Update the app**:
+```bash
+bench get-app --branch main https://github.com/macrobian88/zm-frappe-wix-sync.git
+```
+
+2. **Run migration**:
+```bash
+bench --site [your-site] migrate
+```
+
+3. **Restart**:
+```bash
+bench restart
+```
+
+Your existing API key will be preserved during the migration.
+
 ## 🔍 **Monitoring**
 
 ### Sync Logs
@@ -194,6 +234,8 @@ zm_frappe_wix_sync/
 ├── api/
 │   └── wix_sync.py          # Main sync logic
 ├── hooks.py                 # Event hooks & scheduling  
+├── patches/
+│   └── migrate_wix_api_key_field.py  # Field migration
 ├── zm_frappe_wix_sync/
 │   └── doctype/
 │       ├── wix_sync_log/    # Sync logging

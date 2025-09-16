@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-01-16
+
+### 🔑 MAJOR FIX: Wix API Key Length Limit Resolved
+
+This release resolves the critical character limit issue preventing users from entering long Wix API keys.
+
+### ✅ **API Key Length Issues Fixed**
+- **FIXED**: Removed 140-character limit on `wix_api_key` field
+- **UPDATED**: Field type changed from `Password` to `Long Text` (supports 1000+ characters)
+- **FIXED**: IST token truncation issues (tokens can be 700+ characters)
+- **NEW**: Automatic database migration for existing installations
+- **IMPROVED**: Field description updated to clarify long token support
+
+### 🔄 **Database Migration Features**
+- **NEW**: Automatic field type migration patch (`migrate_wix_api_key_field.py`)
+- **NEW**: Seamless upgrade from Password to Long Text field type
+- **NEW**: Database schema update from VARCHAR(140) to TEXT
+- **PRESERVED**: Existing API key values maintained during migration
+- **AUTOMATED**: Migration runs automatically on `bench migrate`
+
+### 🛠️ **Technical Improvements**
+- **UPDATED**: DocType JSON field definition for `wix_api_key`
+- **NEW**: Database migration patch with comprehensive error handling
+- **IMPROVED**: Field description with IST token information
+- **ENHANCED**: Support for tokens up to 1000+ characters
+
+### 📚 **Documentation Updates**
+- **UPDATED**: README with API key length fix information
+- **NEW**: Migration guide for existing installations
+- **NEW**: Troubleshooting section for character limit issues
+- **IMPROVED**: Installation instructions with IST token notes
+
+### 🔗 **Backward Compatibility**
+- **MAINTAINED**: All existing functionality preserved
+- **MAINTAINED**: Existing API keys automatically migrated
+- **MAINTAINED**: No configuration changes required
+- **SEAMLESS**: Zero-downtime upgrade path
+
 ## [2.1.0] - 2025-09-16
 
 ### 🔧 MAJOR FIX: Complete Authentication and Sync Overhaul
@@ -81,6 +119,33 @@ This release resolves critical authentication issues and implements a robust, pr
 
 ## Migration Guide
 
+### From v2.1.x to v2.2.0
+
+1. **Update to Latest Version:**
+   ```bash
+   bench get-app --branch main https://github.com/macrobian88/zm-frappe-wix-sync.git
+   ```
+
+2. **Run Database Migration:**
+   ```bash
+   bench --site [your-site] migrate
+   ```
+
+3. **Restart Services:**
+   ```bash
+   bench restart
+   ```
+
+4. **Re-enter API Key (if needed):**
+   - If you previously couldn't enter your full API key due to character limits
+   - Go to Wix Sync Settings and paste your complete IST token
+   - The field now supports 1000+ characters
+
+5. **Verify Migration:**
+   - Check that your existing API key is still present
+   - Test connection to ensure everything works
+   - Long IST tokens should now be fully supported
+
 ### From v2.0.x to v2.1.0
 
 1. **Update API Configuration:**
@@ -106,7 +171,7 @@ This release resolves critical authentication issues and implements a robust, pr
 
 ### Dependencies
 - No new dependencies added
-- Same Python and Frappe version requirements as v2.0.x
+- Same Python and Frappe version requirements as previous versions
 
 ---
 
@@ -118,8 +183,10 @@ If you encounter any issues after upgrading:
 2. **Review Logs**: Check Wix Sync Log entries for detailed error info  
 3. **Manual Sync**: Try manually syncing a single item first
 4. **Site ID**: Ensure your site ID is correct in settings
+5. **API Key Length**: Ensure your full API key is entered (IST tokens can be 700+ chars)
 
 For technical support, create an issue with:
 - Your Frappe version
 - Error messages from sync logs
 - Connection test results
+- API key length and format

@@ -5,3 +5,4 @@
 zm_frappe_wix_sync.patches.v1_0.fix_wix_sync_settings_naming
 zm_frappe_wix_sync.patches.v1_0.fix_single_doctype_naming
 zm_frappe_wix_sync.patches.fix_sync_log_field_validation
+zm_frappe_wix_sync.patches.migrate_wix_api_key_field
