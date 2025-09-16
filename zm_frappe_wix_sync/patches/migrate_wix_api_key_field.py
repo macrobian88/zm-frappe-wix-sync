@@ -5,7 +5,6 @@ Patch to migrate wix_api_key field from Password to Long Text
 This patch handles the database schema migration for existing installations
 """
 import frappe
-from frappe.model import rename_field
 
 
 def execute():
@@ -19,13 +18,13 @@ def execute():
             return
         
         # Get the current field definition
-        wix_sync_settings_meta = frappe.get_meta("Wix Sync Settings")
-        wix_api_key_field = None
-        
-        for field in wix_sync_settings_meta.fields:
-            if field.fieldname == "wix_api_key":
-                wix_api_key_field = field
-                break
+        try:
+            wix_api_key_field = frappe.db.get_value("DocField", 
+                {"parent": "Wix Sync Settings", "fieldname": "wix_api_key"}, 
+                ["fieldtype", "name"], as_dict=True)
+        except:
+            print("wix_api_key field not found in DocField, skipping patch")
+            return
         
         if not wix_api_key_field:
             print("wix_api_key field not found, skipping patch")
@@ -35,7 +34,7 @@ def execute():
         if wix_api_key_field.fieldtype == "Password":
             print("Migrating wix_api_key field from Password to Long Text...")
             
-            # Update the field type in the database
+            # Update the field type in the DocField table
             frappe.db.sql("""
                 UPDATE `tabDocField` 
                 SET fieldtype = 'Long Text', 
@@ -50,7 +49,14 @@ def execute():
             table_name = "tabWix Sync Settings"
             
             # Check if the table exists
-            if frappe.db.exists_table(table_name):
+            table_exists = frappe.db.sql(f"""
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = '{frappe.conf.db_name}' 
+                AND TABLE_NAME = '{table_name}'
+            """)
+            
+            if table_exists and table_exists[0][0] > 0:
                 # Get current column type
                 current_type = frappe.db.sql(f"""
                     SELECT COLUMN_TYPE 
@@ -68,6 +74,9 @@ def execute():
                     """)
                     print(f"Successfully altered {table_name}.wix_api_key to TEXT type")
             
+            # Commit the changes
+            frappe.db.commit()
+            
             # Clear cache to reload the updated metadata
             frappe.clear_cache()
             
@@ -82,4 +91,5 @@ def execute():
     except Exception as e:
         print(f"Error during wix_api_key field migration: {str(e)}")
         # Don't raise the exception as patches should be fault-tolerant
+        frappe.log_error("Wix API Key Migration Error", str(e))
         pass
