@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include zm_frappe_wix_sync *.css
+recursive-include zm_frappe_wix_sync *.csv
+recursive-include zm_frappe_wix_sync *.html
+recursive-include zm_frappe_wix_sync *.ico
+recursive-include zm_frappe_wix_sync *.js
+recursive-include zm_frappe_wix_sync *.json
+recursive-include zm_frappe_wix_sync *.md
+recursive-include zm_frappe_wix_sync *.png
+recursive-include zm_frappe_wix_sync *.py
+recursive-include zm_frappe_wix_sync *.svg
+recursive-include zm_frappe_wix_sync *.txt
+recursive-exclude zm_frappe_wix_sync *.pyc
