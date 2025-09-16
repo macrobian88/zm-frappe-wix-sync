@@ -19,7 +19,7 @@
  ],
  "fields": [
   {
-   "default": "Wix Sync Settings",
+   "default": "Wix Sync Configuration",
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title",
