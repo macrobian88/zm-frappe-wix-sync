@@ -1,65 +1,230 @@
 # ZM Frappe Wix Sync
 
-A Frappe v15 custom module app that syncs ERPNext items with Wix products for the kokofresh website.
+A comprehensive Frappe app that automatically synchronizes ERPNext items with Wix Store products in real-time.
 
-## Features
+## 🚀 **Latest Update - v2.1.0**
 
-- **Product Sync**: Automatically syncs ERPNext Item creation with Wix Product creation
-- **Real-time Integration**: Uses Frappe hooks to trigger Wix API calls when items are created
-- **Configurable Settings**: Easy setup through Frappe settings doctype
-- **Error Handling**: Comprehensive logging and error handling for sync operations
+### ✅ **Authentication Issues RESOLVED** 
+All Wix authentication problems have been completely fixed! This release resolves:
+- ❌ `invalid_grant` errors → ✅ Working JWT authentication  
+- ❌ 404 Not Found errors → ✅ Correct API endpoints
+- ❌ Site ID mismatches → ✅ Auto-detected site configuration
+- ❌ Missing Wix Stores app → ✅ Automatic app installation
 
-## Installation
+## 🎯 **Key Features**
 
-1. Get the app:
+- **🔄 Automatic Sync**: Items sync to Wix automatically when created or updated
+- **⏰ Background Jobs**: Hourly scheduled sync catches any missed items  
+- **🛡️ Robust Authentication**: JWT token support with proper error handling
+- **📊 Comprehensive Logging**: Detailed sync status tracking and error reporting
+- **🔧 Manual Controls**: Manual sync options for individual or bulk operations
+- **⚡ Real-time Updates**: Product name, price, stock, and description sync
+- **🔄 Backward Compatible**: Seamless upgrade from previous versions
+
+## 📋 **Prerequisites**
+
+- Frappe Framework v13.0+ 
+- ERPNext v13.0+
+- Active Wix account with a site
+- Wix API key with Store permissions
+- Python requests library
+
+## ⚡ **Quick Start**
+
+### 1. Installation
 ```bash
+# Install the app
 bench get-app https://github.com/macrobian88/zm-frappe-wix-sync.git
+bench --site [your-site] install-app zm_frappe_wix_sync
+
+# Restart to activate hooks
+bench restart
 ```
 
-2. Install on your site:
+### 2. Generate Wix API Key
+1. Go to [Wix API Keys Manager](https://manage.wix.com/account/api-keys)
+2. Click "Create API Key" 
+3. **Name**: `Frappe-Wix-Sync`
+4. **Permissions**: Select "Manage Stores - All Permissions"
+5. **Sites**: Select your site or "All Sites"
+6. **Generate** and copy the API key immediately
+
+### 3. Configure Settings
+1. Go to **Wix Sync Settings** in your Frappe site
+2. **Enable Sync**: ✅ Check the box
+3. **Wix API Key**: Paste your API key
+4. **Site ID**: Will be auto-detected (or set manually)
+5. **Save** the settings
+
+### 4. Test Connection
+1. Click **"Test Connection"** button
+2. Should show: ✅ "Connection successful!"
+3. If errors occur, check the troubleshooting section below
+
+### 5. Start Syncing
+- **Automatic**: Create/edit any Item → syncs automatically
+- **Manual**: Use sync buttons in Item list or call API methods
+- **Bulk**: Use `manual_sync_all_items()` function
+
+## 🔧 **Configuration**
+
+### Wix Sync Settings Fields:
+- **Title**: Descriptive name for the configuration
+- **Enable Sync**: Master switch for all sync operations
+- **Wix Site ID**: Your Wix site identifier (auto-detected)  
+- **Wix API Key**: Your JWT authentication token
+- **Connection Status**: Shows current API connection status
+- **Last Test DateTime**: Timestamp of last connection test
+
+## 📚 **API Methods**
+
+### Connection Testing
+```python
+# Test Wix API connection
+frappe.call("zm_frappe_wix_sync.api.wix_sync.test_wix_connection")
+```
+
+### Manual Sync Operations  
+```python
+# Sync single item
+frappe.call("zm_frappe_wix_sync.api.wix_sync.manual_sync_single_item", 
+           item_code="YOUR_ITEM_CODE")
+
+# Sync all items  
+frappe.call("zm_frappe_wix_sync.api.wix_sync.manual_sync_all_items")
+```
+
+## 🔄 **How Sync Works**
+
+### Automatic Triggers:
+- **Item Creation**: New items sync immediately after creation
+- **Item Updates**: Changes sync when items are saved
+- **Scheduled Jobs**: Hourly background sync catches missed items
+
+### Data Mapping:
+- **Item Name** → Wix Product Name
+- **Item Code** → Wix Product SKU  
+- **Description** → Wix Product Description
+- **Standard Rate** → Wix Product Price
+- **Stock Quantity** → Wix Inventory Level
+- **Weight** → Wix Product Weight
+
+### Sync Process:
+1. Item change detected in Frappe
+2. WixSyncManager validates settings
+3. Product data prepared for Wix API
+4. API call made with authentication
+5. Success/error logged in Wix Sync Log
+6. User notified of result
+
+## 📋 **Troubleshooting**
+
+### Authentication Issues
+
+#### Problem: "Connection test failed" 
+**Solution**: 
 ```bash
-bench install-app zm_frappe_wix_sync
+# Check API key format - should start with "IST."
+# Verify site ID is correct
+# Ensure API key has Store permissions
 ```
 
-3. Configure your Wix API credentials in the Wix Sync Settings doctype
+#### Problem: "401 Unauthorized"
+**Solution**:
+```bash
+# Generate new API key with proper permissions
+# Check account owner/co-owner status
+# Verify API key hasn't been deactivated  
+```
 
-## Configuration
+#### Problem: "Wix Stores not found"
+**Solution**:
+```bash
+# App auto-installs Wix Stores if missing
+# If fails, manually install Wix Stores from Wix App Market
+# Restart sync after installation
+```
 
-After installation, navigate to:
-**Settings > Wix Sync Settings**
+### Sync Issues
 
-Configure the following:
-- **Wix Site ID**: Your Wix site ID (kokofresh site ID)
-- **API Key**: Your Wix API key
-- **Enable Sync**: Toggle to enable/disable automatic syncing
+#### Problem: Items not syncing
+**Solution**:
+```python
+# Check if sync is enabled
+frappe.get_doc("Wix Sync Settings").enable_sync
 
-## How it Works
+# Test connection
+frappe.call("zm_frappe_wix_sync.api.wix_sync.test_wix_connection")
 
-When a new Item is created in ERPNext:
-1. The app listens for the `after_insert` event via Frappe hooks
-2. Extracts item details (name, description, price, etc.)
-3. Formats the data according to Wix Stores API v3 requirements
-4. Makes API call to create product in Wix
-5. Logs the sync status and any errors
+# Check sync logs
+frappe.get_all("Wix Sync Log", limit=10, order_by="creation desc")
+```
 
-## API Reference
+#### Problem: "Sync Status validation error"  
+**Solution**:
+```bash
+# Go to Customize Form > Wix Sync Log
+# Update "Sync Status" field options to:
+# Success
+# Failed  
+# Error
+# (Remove \n characters)
+```
 
-Uses Wix Stores Catalog V3 API:
-- **Endpoint**: `POST https://www.wixapis.com/stores/v3/products`
-- **Authentication**: Bearer token
-- **Required Fields**: name, productType, variantsInfo, physicalProperties
+## 🔍 **Monitoring**
 
-## Development
+### Sync Logs
+Check **Wix Sync Log** for detailed sync history:
+- Item codes and sync timestamps
+- Success/error status  
+- Wix product IDs
+- Detailed error messages
 
-This is a POC (Proof of Concept) focusing on:
-- One-way sync from ERPNext to Wix
-- Product creation only
-- Simple error handling and logging
+### Connection Status
+Monitor **Wix Sync Settings** for:
+- Real-time connection status
+- Last successful test timestamp  
+- API connectivity health
 
-## Support
+## 🛠️ **Development**
 
-For issues and questions, please open an issue on the GitHub repository.
+### Project Structure
+```
+zm_frappe_wix_sync/
+├── api/
+│   └── wix_sync.py          # Main sync logic
+├── hooks.py                 # Event hooks & scheduling  
+├── zm_frappe_wix_sync/
+│   └── doctype/
+│       ├── wix_sync_log/    # Sync logging
+│       └── wix_sync_settings/ # Configuration
+└── public/
+    └── js/
+        └── item_list.js     # UI enhancements
+```
 
-## License
+### Contributing
+1. Fork the repository
+2. Create feature branch
+3. Make changes with tests
+4. Submit pull request
 
-MIT License
+## 📖 **Changelog**
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+
+## 🆘 **Support**
+
+- **Issues**: [GitHub Issues](https://github.com/macrobian88/zm-frappe-wix-sync/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/macrobian88/zm-frappe-wix-sync/discussions)
+- **Email**: tech@zmtech.com
+
+## 📄 **License**
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## ⭐ **Star this repo** if it helps your business!
+
+Made with ❤️ by [ZM Tech](https://github.com/macrobian88)

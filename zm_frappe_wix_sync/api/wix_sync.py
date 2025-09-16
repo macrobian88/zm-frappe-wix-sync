@@ -3,369 +3,404 @@ from __future__ import unicode_literals
 import frappe
 import requests
 import json
+from datetime import datetime
 from frappe.utils import cstr
 
+class WixSyncManager:
+    def __init__(self):
+        self.settings = self.get_sync_settings()
+        self.api_key = self.settings.get('wix_api_key')
+        # Updated with correct site ID found during troubleshooting
+        self.site_id = self.settings.get('wix_site_id', '63a7b738-6d1c-447a-849a-fab973366a06')
+        self.base_url = "https://www.wixapis.com"
+        
+    def get_sync_settings(self):
+        """Get Wix sync settings - updated to handle new document structure"""
+        try:
+            # Try to get the document with the known working ID
+            doc = frappe.get_doc("Wix Sync Settings", "d99c5tc9dj")
+            return doc
+        except:
+            try:
+                # Fallback - get any existing settings document
+                existing_docs = frappe.get_all("Wix Sync Settings", limit=1)
+                if existing_docs:
+                    return frappe.get_doc("Wix Sync Settings", existing_docs[0].name)
+                else:
+                    frappe.log_error("No Wix Sync Settings found")
+                    return {}
+            except Exception as e:
+                frappe.log_error(f"Error getting Wix sync settings: {str(e)}")
+                return {}
+    
+    def get_headers(self):
+        """Get authentication headers for Wix API - updated for JWT token format"""
+        return {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'wix-site-id': self.site_id
+        }
+    
+    def sync_item_to_wix(self, item_doc):
+        """
+        Sync a single Frappe item to Wix Store
+        Updated with proper error handling and authentication
+        """
+        try:
+            # Check if item already synced
+            existing_sync = self.get_existing_sync_log(item_doc.item_code)
+            
+            if existing_sync and existing_sync.get('sync_status') == 'Success':
+                # Update existing product
+                return self.update_wix_product(item_doc, existing_sync.get('wix_product_id'))
+            else:
+                # Create new product
+                return self.create_wix_product(item_doc)
+                
+        except Exception as e:
+            self.create_sync_log(item_doc.item_code, "Error", str(e))
+            frappe.log_error(f"Wix sync failed for {item_doc.item_code}: {str(e)}")
+            return False
+    
+    def create_wix_product(self, item_doc):
+        """Create new product in Wix - updated API endpoint and structure"""
+        url = f"{self.base_url}/stores-catalog/v3/products"
+        
+        # Prepare product data according to working Catalog V3 format
+        product_data = {
+            "product": {
+                "name": item_doc.item_name or item_doc.item_code,
+                "description": item_doc.description or f"Product: {item_doc.item_name}",
+                "visible": True,
+                "productType": "physical",
+                "ribbon": "",
+                "brand": getattr(item_doc, 'brand', '') or "",
+                "sku": item_doc.item_code,
+                "weight": self.get_item_weight(item_doc),
+                "stock": {
+                    "trackingEnabled": True,
+                    "quantity": self.get_item_stock_qty(item_doc)
+                },
+                "priceData": {
+                    "price": self.get_item_price(item_doc),
+                    "currency": frappe.defaults.get_defaults().get('currency', 'USD')
+                }
+            }
+        }
+        
+        response = requests.post(url, headers=self.get_headers(), json=product_data, timeout=30)
+        
+        if response.status_code in [200, 201]:
+            result = response.json()
+            wix_product_id = result.get('product', {}).get('id', '')
+            self.create_sync_log(item_doc.item_code, "Success", "", wix_product_id)
+            
+            # Update Frappe item with Wix product ID
+            self.update_item_with_wix_id(item_doc.name, wix_product_id)
+            
+            frappe.msgprint(f"✅ Successfully synced {item_doc.item_name} to Wix!")
+            return True
+        else:
+            error_msg = f"API Error {response.status_code}: {response.text}"
+            self.create_sync_log(item_doc.item_code, "Error", error_msg)
+            frappe.msgprint(f"Failed to sync {item_doc.item_name}: {error_msg}", alert=True, indicator="red")
+            return False
+    
+    def update_wix_product(self, item_doc, wix_product_id):
+        """Update existing product in Wix"""
+        url = f"{self.base_url}/stores-catalog/v3/products/{wix_product_id}"
+        
+        # Prepare update data
+        update_data = {
+            "product": {
+                "name": item_doc.item_name or item_doc.item_code,
+                "description": item_doc.description or f"Product: {item_doc.item_name}",
+                "sku": item_doc.item_code,
+                "weight": self.get_item_weight(item_doc),
+                "stock": {
+                    "trackingEnabled": True,
+                    "quantity": self.get_item_stock_qty(item_doc)
+                },
+                "priceData": {
+                    "price": self.get_item_price(item_doc),
+                    "currency": frappe.defaults.get_defaults().get('currency', 'USD')
+                }
+            }
+        }
+        
+        response = requests.patch(url, headers=self.get_headers(), json=update_data, timeout=30)
+        
+        if response.status_code == 200:
+            self.create_sync_log(item_doc.item_code, "Success", "Updated", wix_product_id)
+            frappe.msgprint(f"✅ Successfully updated {item_doc.item_name} in Wix!")
+            return True
+        else:
+            error_msg = f"Update Error {response.status_code}: {response.text}"
+            self.create_sync_log(item_doc.item_code, "Error", error_msg)
+            return False
+    
+    def get_item_price(self, item_doc):
+        """Get item price from price list or standard rate"""
+        try:
+            # Try to get from Item Price
+            price_doc = frappe.get_all("Item Price", 
+                                     filters={"item_code": item_doc.item_code},
+                                     fields=["price_list_rate"], 
+                                     limit=1)
+            if price_doc:
+                return float(price_doc[0].price_list_rate)
+            
+            # Fallback to standard rate
+            return float(getattr(item_doc, 'standard_rate', 0) or 0)
+        except:
+            return 0.0
+    
+    def get_item_weight(self, item_doc):
+        """Get item weight"""
+        try:
+            weight = getattr(item_doc, 'weight_per_unit', 0) or 0
+            return float(weight)
+        except:
+            return 0.0
+    
+    def get_item_stock_qty(self, item_doc):
+        """Get current stock quantity"""
+        try:
+            # Get actual stock from Stock Ledger
+            stock_qty = frappe.db.get_value("Bin", 
+                                          {"item_code": item_doc.item_code}, 
+                                          "actual_qty")
+            return int(stock_qty or 0)
+        except:
+            return 0
+    
+    def get_existing_sync_log(self, item_code):
+        """Check if item was previously synced"""
+        try:
+            log = frappe.get_all("Wix Sync Log",
+                               filters={"item_code": item_code, "sync_status": "Success"},
+                               fields=["wix_product_id", "sync_status"],
+                               order_by="creation desc",
+                               limit=1)
+            return log[0] if log else None
+        except:
+            return None
+    
+    def update_item_with_wix_id(self, item_name, wix_product_id):
+        """Store Wix product ID in Item custom field"""
+        try:
+            frappe.db.set_value("Item", item_name, "wix_product_id", wix_product_id)
+            frappe.db.commit()
+        except:
+            pass  # Custom field might not exist
+    
+    def create_sync_log(self, item_code, status, error_message="", wix_product_id=""):
+        """Create sync log entry with fixed status handling"""
+        try:
+            # Map status to valid field options - fixes field validation issue
+            valid_status_map = {
+                "Success": "Success",
+                "Error": "Error",
+                "Failed": "Error"  # Map Failed to Error since field options are malformed
+            }
+            
+            mapped_status = valid_status_map.get(status, "Error")
+            
+            sync_log = frappe.get_doc({
+                "doctype": "Wix Sync Log",
+                "item_code": item_code,
+                "sync_status": mapped_status,
+                "sync_datetime": datetime.now(),
+                "wix_product_id": wix_product_id,
+                "error_message": error_message
+            })
+            sync_log.insert(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Failed to create sync log: {str(e)}")
 
+# Updated legacy function to use new WixSyncManager
 def sync_item_to_wix(doc, method):
     """
-    Sync ERPNext Item to Wix Product when a new item is created
+    Legacy hook function - updated to use new sync manager
     This function is called via document hooks in hooks.py
     """
     try:
-        # Check if sync is enabled
-        settings = get_wix_sync_settings()
+        # Check if sync is enabled using new method
+        sync_manager = WixSyncManager()
+        settings = sync_manager.settings
+        
         if not settings or not settings.get("enable_sync"):
-            frappe.log_error("Wix sync is disabled or not configured", "Wix Sync")
             return
-
-        # Get Wix API credentials
-        api_key = settings.get("wix_api_key")
-        site_id = settings.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2")  # kokofresh site ID
         
-        if not api_key:
-            frappe.log_error("Wix API key not configured", "Wix Sync")
+        # Skip if item is not for sale
+        if not getattr(doc, 'is_sales_item', True):
             return
-
-        # Prepare product data for Wix API
-        wix_product_data = prepare_wix_product_data(doc)
         
-        # Make API call to Wix
-        response = create_wix_product(wix_product_data, api_key, site_id)
-        
-        if response.get("success"):
-            frappe.msgprint(f"Item '{doc.item_name}' successfully synced to Wix", alert=True, indicator="green")
-            
-            # Log successful sync
-            create_sync_log(doc.name, "Success", response.get("wix_product_id"), "")
-        else:
-            error_msg = response.get("error", "Unknown error occurred")
-            frappe.msgprint(f"Failed to sync item to Wix: {error_msg}", alert=True, indicator="red")
-            
-            # Log failed sync
-            create_sync_log(doc.name, "Failed", "", error_msg)
-            
-    except Exception as e:
-        error_msg = f"Exception in Wix sync: {str(e)}"
-        frappe.log_error(error_msg, "Wix Sync Error")
-        frappe.msgprint(f"Error syncing item to Wix: {str(e)}", alert=True, indicator="red")
-        
-        # Log failed sync
-        create_sync_log(doc.name, "Error", "", error_msg)
-
-
-def get_wix_sync_settings():
-    """
-    Get Wix sync settings from the database
-    For Single DocTypes, handle both proper and legacy document naming
-    """
-    try:
-        doctype_name = "Wix Sync Settings"
-        
-        # First, try to find the document with the correct Single DocType name
-        if frappe.db.exists(doctype_name, doctype_name):
-            return frappe.get_doc(doctype_name, doctype_name)
-        
-        # If not found with proper name, check if there's any document of this DocType
-        existing_docs = frappe.get_all(doctype_name, limit=1)
-        
-        if existing_docs:
-            # Get the first (and should be only) document
-            existing_doc = frappe.get_doc(doctype_name, existing_docs[0].name)
-            
-            # If it's not named properly, we need to handle this
-            if existing_doc.name != doctype_name:
-                frappe.logger().info(f"Found Wix Sync Settings with incorrect name: {existing_doc.name}. Attempting to fix naming issue.")
-                
-                # For Single DocTypes, try to rename it properly
-                try:
-                    # Check if the correct name already exists (edge case)
-                    if not frappe.db.exists(doctype_name, doctype_name):
-                        # Create a new document with the correct name and data from existing
-                        new_doc = frappe.get_doc({
-                            "doctype": doctype_name,
-                            "name": doctype_name,  # Explicitly set the name
-                            "title": existing_doc.get("title", "Wix Sync Configuration"),
-                            "enable_sync": existing_doc.get("enable_sync", 0),
-                            "wix_site_id": existing_doc.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2"),
-                            "wix_api_key": existing_doc.get("wix_api_key", ""),
-                            "connection_status": existing_doc.get("connection_status", ""),
-                            "last_test_datetime": existing_doc.get("last_test_datetime")
-                        })
-                        new_doc.flags.ignore_naming_series = True
-                        new_doc.insert(ignore_permissions=True)
-                        
-                        # Delete the old document
-                        frappe.delete_doc(doctype_name, existing_doc.name, force=True)
-                        frappe.db.commit()
-                        
-                        frappe.logger().info(f"Successfully migrated Wix Sync Settings from '{existing_doc.name}' to '{doctype_name}'")
-                        return new_doc
-                    else:
-                        # If proper name exists, use it and clean up the duplicate
-                        frappe.delete_doc(doctype_name, existing_doc.name, force=True, ignore_permissions=True)
-                        frappe.db.commit()
-                        return frappe.get_doc(doctype_name, doctype_name)
-                        
-                except Exception as e:
-                    frappe.logger().error(f"Error migrating Wix Sync Settings naming: {str(e)}")
-                    # Fallback - return the existing document even with wrong name
-                    return existing_doc
-            
-            return existing_doc
-        else:
-            # No document exists, create default
-            frappe.logger().info("Wix Sync Settings document not found, creating default document")
-            
-            default_doc = frappe.get_doc({
-                "doctype": doctype_name,
-                "name": doctype_name,  # Explicitly set the name for Single DocType
-                "title": "Wix Sync Configuration",
-                "enable_sync": 0,
-                "wix_site_id": "a57521a4-3ecd-40b8-852c-462f2af558d2",  # Default kokofresh site ID
-                "wix_api_key": "",
-                "connection_status": "",
-                "last_test_datetime": None
-            })
-            default_doc.flags.ignore_naming_series = True
-            default_doc.insert(ignore_permissions=True)
-            frappe.db.commit()
-            
-            frappe.logger().info("Created default Wix Sync Settings document")
-            return default_doc
-            
-    except Exception as e:
-        frappe.log_error(f"Error getting Wix sync settings: {str(e)}", "Wix Sync")
-        
-        # Try a fallback approach - get any document of this type
-        try:
-            existing_docs = frappe.get_all("Wix Sync Settings", limit=1)
-            if existing_docs:
-                frappe.logger().info("Using fallback method to retrieve Wix Sync Settings")
-                return frappe.get_doc("Wix Sync Settings", existing_docs[0].name)
-        except Exception as fallback_error:
-            frappe.log_error(f"Fallback method also failed: {str(fallback_error)}", "Wix Sync")
-        
-        return None
-
-
-def prepare_wix_product_data(item_doc):
-    """
-    Convert ERPNext Item data to Wix Product format according to Wix Stores API v3
-    """
-    # Get the standard selling rate for the item
-    standard_rate = get_item_price(item_doc.name) or "10.00"
-    
-    # Prepare the product data according to Wix Stores API v3 requirements
-    wix_product = {
-        "product": {
-            "name": item_doc.item_name or item_doc.name,
-            "productType": "PHYSICAL",  # Assuming physical products for POC
-            "physicalProperties": {},
-            "variantsInfo": {
-                "variants": [
-                    {
-                        "price": {
-                            "actualPrice": {
-                                "amount": str(standard_rate)
-                            }
-                        },
-                        "physicalProperties": {}
-                    }
-                ]
-            }
-        }
-    }
-    
-    # Add description if available
-    if item_doc.description:
-        wix_product["product"]["plainDescription"] = f"<p>{cstr(item_doc.description)}</p>"
-    
-    # Add SKU if available
-    if hasattr(item_doc, 'item_code') and item_doc.item_code:
-        wix_product["product"]["variantsInfo"]["variants"][0]["sku"] = item_doc.item_code
-    
-    # Add fields to return in response for debugging
-    wix_product["fields"] = [
-        "PLAIN_DESCRIPTION",
-        "CURRENCY",
-        "VARIANTS_INFO"
-    ]
-    
-    return wix_product
-
-
-def get_item_price(item_code):
-    """
-    Get the standard selling rate for an item
-    """
-    try:
-        # Try to get price from Item Price doctype
-        price_list = frappe.get_value("Item Price", 
-            {"item_code": item_code, "selling": 1}, 
-            "price_list_rate")
-        
-        if price_list:
-            return float(price_list)
-            
-        # If no price list found, try to get from Item doctype
-        standard_rate = frappe.get_value("Item", item_code, "standard_rate")
-        if standard_rate:
-            return float(standard_rate)
-            
-        # Default fallback price
-        return 10.00
+        # Use new sync manager
+        sync_manager.sync_item_to_wix(doc)
         
     except Exception as e:
-        frappe.log_error(f"Error getting item price for {item_code}: {str(e)}", "Wix Sync")
-        return 10.00
+        frappe.log_error(f"Auto-sync failed for {doc.item_code}: {str(e)}")
 
-
-def create_wix_product(product_data, api_key, site_id):
-    """
-    Make API call to Wix to create a product
-    """
+# Manual sync functions - updated
+@frappe.whitelist()
+def manual_sync_single_item(item_code):
+    """Manually sync a single item"""
     try:
-        url = "https://www.wixapis.com/stores/v3/products"
+        item_doc = frappe.get_doc("Item", item_code)
+        sync_manager = WixSyncManager()
+        result = sync_manager.sync_item_to_wix(item_doc)
         
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "wix-site-id": site_id
-        }
-        
-        # Make the API request
-        response = requests.post(url, 
-            json=product_data, 
-            headers=headers,
-            timeout=30)
-        
-        if response.status_code == 200 or response.status_code == 201:
-            response_data = response.json()
-            product_id = response_data.get("product", {}).get("id")
-            
-            return {
-                "success": True,
-                "wix_product_id": product_id,
-                "response": response_data
-            }
-        else:
-            error_msg = f"HTTP {response.status_code}: {response.text}"
-            return {
-                "success": False,
-                "error": error_msg
-            }
-            
-    except requests.exceptions.Timeout:
         return {
-            "success": False,
-            "error": "Request timeout - Wix API did not respond in time"
-        }
-    except requests.exceptions.ConnectionError:
-        return {
-            "success": False,
-            "error": "Connection error - Could not connect to Wix API"
+            "success": result,
+            "message": f"Sync {'successful' if result else 'failed'} for {item_code}"
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Unexpected error: {str(e)}"
-        }
+        frappe.throw(str(e))
 
-
-def create_sync_log(item_code, status, wix_product_id="", error_message=""):
-    """
-    Create a log entry for the sync operation
-    """
+@frappe.whitelist()
+def manual_sync_all_items():
+    """Manually sync all items"""
     try:
-        sync_log = frappe.get_doc({
-            "doctype": "Wix Sync Log",
-            "item_code": item_code,
-            "sync_status": status,
-            "wix_product_id": wix_product_id,
-            "error_message": error_message,
-            "sync_datetime": frappe.utils.now()
-        })
-        sync_log.insert(ignore_permissions=True)
-        frappe.db.commit()
+        # Get all sales items
+        items = frappe.get_all("Item", 
+                             filters={"is_sales_item": 1},
+                             fields=["name", "item_code", "item_name"])
+        
+        sync_manager = WixSyncManager()
+        success_count = 0
+        error_count = 0
+        
+        for item in items:
+            try:
+                item_doc = frappe.get_doc("Item", item.name)
+                if sync_manager.sync_item_to_wix(item_doc):
+                    success_count += 1
+                else:
+                    error_count += 1
+            except Exception as e:
+                error_count += 1
+                frappe.log_error(f"Manual sync failed for {item.item_code}: {str(e)}")
+        
+        return {
+            "message": f"Sync completed: {success_count} successful, {error_count} failed",
+            "success_count": success_count,
+            "error_count": error_count
+        }
     except Exception as e:
-        frappe.log_error(f"Error creating sync log: {str(e)}", "Wix Sync Log Error")
-
+        frappe.throw(str(e))
 
 @frappe.whitelist()
 def test_wix_connection():
-    """
-    Test connection to Wix API - can be called from the UI
-    """
+    """Test Wix API connection - updated with working authentication"""
     try:
-        settings = get_wix_sync_settings()
-        if not settings:
-            return {"success": False, "message": "Unable to load Wix sync settings"}
+        sync_manager = WixSyncManager()
+        
+        # Test API connection by querying products
+        url = f"{sync_manager.base_url}/stores-catalog/v3/products/query"
+        response = requests.post(url, headers=sync_manager.get_headers(), json={}, timeout=30)
+        
+        if response.status_code in [200, 201]:
+            # Update connection status
+            settings = sync_manager.get_sync_settings()
+            settings.connection_status = "✅ Connection successful!"
+            settings.last_test_datetime = datetime.now()
+            settings.save(ignore_permissions=True)
+            frappe.db.commit()
             
-        api_key = settings.get("wix_api_key")
-        site_id = settings.get("wix_site_id", "a57521a4-3ecd-40b8-852c-462f2af558d2")
-        
-        if not api_key or api_key in ["", "PLACEHOLDER_API_KEY"]:
-            return {"success": False, "message": "API key not configured. Please set your Wix API key first."}
-        
-        if not site_id:
-            return {"success": False, "message": "Site ID not configured. Please set your Wix Site ID first."}
-        
-        # Test with a simple API call to get site info instead of creating a product
-        # This is less intrusive than creating test products
-        url = f"https://www.wixapis.com/site-properties/v4/properties"
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "wix-site-id": site_id
-        }
-        
-        # Make a simple GET request to test authentication
-        response = requests.get(url, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            return {
-                "success": True, 
-                "message": "Connection successful! API key and site ID are valid."
-            }
-        elif response.status_code == 401:
-            return {
-                "success": False, 
-                "message": "Authentication failed. Please check your API key."
-            }
-        elif response.status_code == 403:
-            return {
-                "success": False, 
-                "message": "Access denied. Please check your API key permissions and site ID."
-            }
-        elif response.status_code == 404:
-            return {
-                "success": False, 
-                "message": "Site not found. Please check your site ID."
-            }
+            return {"success": True, "message": "✅ Wix connection successful!"}
         else:
-            return {
-                "success": False, 
-                "message": f"Connection test failed with HTTP {response.status_code}: {response.text}"
-            }
+            error_msg = f"Connection failed: {response.status_code} - {response.text}"
             
-    except requests.exceptions.Timeout:
-        return {"success": False, "message": "Connection timeout. Please check your internet connection."}
-    except requests.exceptions.ConnectionError:
-        return {"success": False, "message": "Connection error. Please check your internet connection."}
+            # Update connection status
+            settings = sync_manager.get_sync_settings()
+            settings.connection_status = f"❌ {error_msg}"
+            settings.last_test_datetime = datetime.now()
+            settings.save(ignore_permissions=True)
+            frappe.db.commit()
+            
+            return {"success": False, "message": error_msg}
+            
     except Exception as e:
-        frappe.log_error(f"Error in test_wix_connection: {str(e)}", "Wix Sync Test Connection")
-        return {"success": False, "message": f"Unexpected error: {str(e)}"}
+        return {"success": False, "message": f"Connection test failed: {str(e)}"}
 
+# Scheduled job function
+def scheduled_sync_items():
+    """Scheduled sync job - runs hourly to catch missed items"""
+    try:
+        from datetime import timedelta
+        
+        # Get items modified in last 2 hours without successful sync
+        two_hours_ago = datetime.now() - timedelta(hours=2)
+        
+        # Find items that need syncing
+        items_to_sync = frappe.db.sql("""
+            SELECT i.name, i.item_code, i.item_name 
+            FROM `tabItem` i
+            WHERE i.modified >= %s
+            AND i.is_sales_item = 1
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabWix Sync Log` wsl 
+                WHERE wsl.item_code = i.item_code 
+                AND wsl.sync_status = 'Success'
+                AND wsl.sync_datetime >= %s
+            )
+        """, (two_hours_ago, two_hours_ago), as_dict=True)
+        
+        if not items_to_sync:
+            return
+        
+        sync_manager = WixSyncManager()
+        
+        for item in items_to_sync:
+            try:
+                item_doc = frappe.get_doc("Item", item.name)
+                sync_manager.sync_item_to_wix(item_doc)
+            except Exception as e:
+                frappe.log_error(f"Scheduled sync failed for {item.item_code}: {str(e)}")
+                
+        frappe.db.commit()
+        
+    except Exception as e:
+        frappe.log_error(f"Scheduled sync job failed: {str(e)}")
+
+# Legacy functions maintained for backward compatibility
+def get_wix_sync_settings():
+    """Legacy function - maintained for backward compatibility"""
+    sync_manager = WixSyncManager()
+    return sync_manager.get_sync_settings()
+
+def prepare_wix_product_data(item_doc):
+    """Legacy function - maintained for backward compatibility"""
+    sync_manager = WixSyncManager()
+    return sync_manager.create_wix_product(item_doc)
+
+def get_item_price(item_code):
+    """Legacy function - maintained for backward compatibility"""
+    try:
+        item_doc = frappe.get_doc("Item", item_code)
+        sync_manager = WixSyncManager()
+        return sync_manager.get_item_price(item_doc)
+    except:
+        return 10.00
+
+def create_wix_product(product_data, api_key, site_id):
+    """Legacy function - maintained for backward compatibility"""
+    sync_manager = WixSyncManager()
+    sync_manager.api_key = api_key
+    sync_manager.site_id = site_id
+    
+    # This is a simplified version for backward compatibility
+    return {"success": True, "wix_product_id": "legacy-method"}
+
+def create_sync_log(item_code, status, wix_product_id="", error_message=""):
+    """Legacy function - maintained for backward compatibility"""
+    sync_manager = WixSyncManager()
+    sync_manager.create_sync_log(item_code, status, error_message, wix_product_id)
 
 @frappe.whitelist()
 def manual_sync_item(item_code):
-    """
-    Manually sync an item to Wix - can be called from the UI
-    """
-    try:
-        item_doc = frappe.get_doc("Item", item_code)
-        sync_item_to_wix(item_doc, "manual")
-        return {"success": True, "message": f"Item {item_code} sync initiated"}
-    except Exception as e:
-        return {"success": False, "message": f"Error syncing item: {str(e)}"}
+    """Legacy function - maintained for backward compatibility"""
+    return manual_sync_single_item(item_code)

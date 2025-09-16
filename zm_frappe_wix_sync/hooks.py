@@ -96,33 +96,24 @@ doctype_list_js = {"Item" : "public/js/item_list.js"}
 # Document Events
 # ---------------
 # Hook on document methods and events
+# Updated with improved sync handling
 
 doc_events = {
     "Item": {
-        "after_insert": "zm_frappe_wix_sync.api.wix_sync.sync_item_to_wix"
+        "after_insert": "zm_frappe_wix_sync.api.wix_sync.sync_item_to_wix",
+        "on_update": "zm_frappe_wix_sync.api.wix_sync.sync_item_to_wix"
     }
 }
 
 # Scheduled Tasks
 # ---------------
+# Added scheduled sync job to catch any missed items
 
-# scheduler_events = {
-# 	"all": [
-# 		"zm_frappe_wix_sync.tasks.all"
-# 	],
-# 	"daily": [
-# 		"zm_frappe_wix_sync.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"zm_frappe_wix_sync.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"zm_frappe_wix_sync.tasks.weekly"
-# 	]
-# 	"monthly": [
-# 		"zm_frappe_wix_sync.tasks.monthly"
-# 	]
-# }
+scheduler_events = {
+    "hourly": [
+        "zm_frappe_wix_sync.api.wix_sync.scheduled_sync_items"
+    ]
+}
 
 # Testing
 # -------
@@ -146,7 +137,6 @@ doc_events = {
 # exempt linked doctypes from being automatically cancelled
 #
 # auto_cancel_exempted_doctypes = ["Auto Repeat"]
-
 
 # User Data Protection
 # --------------------
@@ -178,3 +168,13 @@ user_data_fields = [
 # auth_hooks = [
 # 	"zm_frappe_wix_sync.auth.validate"
 # ]
+
+# Whitelisted functions for API access
+# ------------------------------------
+
+# Override or add whitelisted methods for API access
+override_whitelisted_methods = {
+    "zm_frappe_wix_sync.api.wix_sync.test_wix_connection": "zm_frappe_wix_sync.api.wix_sync.test_wix_connection",
+    "zm_frappe_wix_sync.api.wix_sync.manual_sync_single_item": "zm_frappe_wix_sync.api.wix_sync.manual_sync_single_item",
+    "zm_frappe_wix_sync.api.wix_sync.manual_sync_all_items": "zm_frappe_wix_sync.api.wix_sync.manual_sync_all_items"
+}
