@@ -1,0 +1,3 @@
+# List of patches to be applied in order
+# Example:
+# zm_frappe_wix_sync.patches.v1_0.initial_setup
